@@ -1,23 +1,24 @@
 import { DevicePollResult } from "../../types/device";
 
-// TEMPORARY, for single device only
-const DEVICE_IP = "192.168.1.1";
-const DEVICE_USER = "root";
+// TEMPORARY: only `passwordHash` is persisted (correctly, since it's a hash),
+// but the device's HTTP API needs the plaintext password for Basic Auth.
+// There's no real credential store yet, so every device is polled with this
+// single placeholder password until one exists.
 const DEVICE_PASSWORD = "12345";
 const TIMEOUT_MS = 3000;
 
-function basicAuthHeader(): string {
-  const encoded = Buffer.from(`${DEVICE_USER}:${DEVICE_PASSWORD}`).toString("base64");
+function basicAuthHeader(username: string): string {
+  const encoded = Buffer.from(`${username}:${DEVICE_PASSWORD}`).toString("base64");
   return `Basic ${encoded}`;
 }
 
-async function fetchJson(path: string) {
+async function fetchJson(ipAddress: string, username: string, path: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`http://${DEVICE_IP}${path}`, {
+    const res = await fetch(`http://${ipAddress}${path}`, {
       headers: {
-        Authorization: basicAuthHeader(),
+        Authorization: basicAuthHeader(username),
         Connection: "close",
         Accept: "*/*"
       },
@@ -31,13 +32,13 @@ async function fetchJson(path: string) {
   }
 }
 
-export async function pollDevice(): Promise<DevicePollResult> {
+export async function pollDevice(device: { ipAddress: string; username: string }): Promise<DevicePollResult> {
   const start = Date.now();
   const fetchedAt = new Date().toISOString();
 
   try {
-    const di = await fetchJson("/di_value/slot_0");
-    const log = await fetchJson("/log_message");
+    const di = await fetchJson(device.ipAddress, device.username, "/di_value/slot_0");
+    const log = await fetchJson(device.ipAddress, device.username, "/log_message");
 
     return {
       connected: true,

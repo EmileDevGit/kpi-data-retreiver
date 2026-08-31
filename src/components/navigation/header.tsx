@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 
 const NAV_LINKS = [
   { label: "Sites", href: "/sites" },
-  { label: "Debug", href: "/debug" },
 ];
 
 export function Header() {

@@ -31,9 +31,10 @@ export default async function MachineDevicesPage({
 
       <div className="space-y-3">
         {devices.map((device) => (
-          <div
+          <Link
             key={device.id}
-            className="rounded-2xl bg-[#EDE7D9] border-l-[6px] border-[#4C8C5B] p-6 flex items-center justify-between"
+            href={`/sites/${siteId}/${machineId}/${device.id}`}
+            className="rounded-2xl bg-[#EDE7D9] border-l-[6px] border-[#4C8C5B] p-6 flex items-center justify-between transition-colors hover:bg-[#E4DDC9]"
           >
             <div>
               <h2 className="font-medium text-[#1E3A2B]">{device.ipAddress}</h2>
@@ -42,7 +43,7 @@ export default async function MachineDevicesPage({
               )}
             </div>
             <span className="text-sm text-[#8A9184] font-mono">{device.macAddress}</span>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

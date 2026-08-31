@@ -3,23 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import { STATUS_STYLES } from "@/lib/styles/status";
 import type { Status } from "@/lib/types/status";
-import type { DevicePollResult } from "@/lib/types/device.ts";
+import type { DevicePollResult } from "@/lib/types/device";
 
 const POLL_INTERVAL_MS = 3000;
 const HISTORY_LIMIT = 20;
 
-export default function DebugPage() {
+export function DeviceDebugPanel({ deviceId, deviceLabel }: { deviceId: string; deviceLabel: string }) {
   const [latest, setLatest] = useState<DevicePollResult | null>(null);
   const [history, setHistory] = useState<DevicePollResult[]>([]);
   const [pollCount, setPollCount] = useState(0);
+  const [resetKey, setResetKey] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLatest(null);
+    setHistory([]);
+    setPollCount(0);
 
     async function poll() {
       try {
-        const res = await fetch("/api/debug/poll", { cache: "no-store" });
+        const res = await fetch(`/api/devices/${deviceId}/poll`, { cache: "no-store" });
         const data: DevicePollResult = await res.json();
         if (cancelled) return;
         setLatest(data);
@@ -44,19 +48,24 @@ export default function DebugPage() {
       cancelled = true;
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, []);
+  }, [deviceId, resetKey]);
 
-  // No poll resolved yet -> neutral. Otherwise good/bad from connected flag.
   const status: Status = latest === null ? "neutral" : latest.connected ? "good" : "bad";
   const styles = STATUS_STYLES[status];
 
   return (
-    <div className="min-h-screen bg-[#F6F2E8] p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-[#1E3A2B]">Device Debug</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <p className="text-sm text-[#8A9184]">
-          Polling WISE-4050 every {POLL_INTERVAL_MS / 1000}s — {pollCount} polls so far
+          Polling {deviceLabel} every {POLL_INTERVAL_MS / 1000}s — {pollCount} polls so far
         </p>
+        <button
+          type="button"
+          onClick={() => setResetKey((k) => k + 1)}
+          className="text-sm font-semibold text-[#1E3A2B] border border-[#8A9184]/40 rounded-lg px-3 py-1.5 hover:bg-[#EDE7D9] transition-colors"
+        >
+          Reset
+        </button>
       </div>
 
       <div className={`rounded-2xl bg-[#EDE7D9] border-l-[6px] ${styles.border} p-6 flex items-center justify-between`}>
