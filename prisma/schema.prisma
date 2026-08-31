@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Site {
+  id        String   @id @default(uuid()) @map("site_id")
+  name      String   @unique @map("site_name")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  machines Machine[]
+
+  @@map("sites")
+}
+
+model Machine {
+  id        String   @id @default(uuid()) @map("machine_id")
+  siteId    String   @map("site_id")
+  name      String   @unique @map("machine_name")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+  devices Device[]
+
+  @@index([siteId])
+  @@map("machines")
+}
+
+model Device {
+  id           String   @id @default(uuid()) @map("device_id")
+  machineId    String   @map("machine_id")
+  macAddress   String   @unique @map("mac_address")
+  ipAddress    String   @unique @map("ip_address")
+  username     String
+  passwordHash String   @map("password_hash")
+  description  String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  machine Machine @relation(fields: [machineId], references: [id])
+  channelConfigs ChannelConfig[]
+  polls DevicePoll[]
+
+  @@index([machineId])
+  @@map("devices")
+}
+
+model ChannelConfig {
+  deviceId          String  @map("device_id")
+  channelNumber     Int     @map("channel_number")
+  mode              Int
+  signalLogicStatus Int     @map("signal_logic_status")
+  isPaused          Boolean @default(false) @map("is_paused")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  device Device @relation(fields: [deviceId], references: [id])
+
+  @@id([deviceId, channelNumber])
+  @@map("channel_configs")
+}
+
+model DevicePoll {
+  id           String   @id @default(uuid()) @map("poll_id")
+  deviceId     String   @map("device_id")
+  fetchedAt    DateTime @default(now()) @map("fetched_at")
+  isSuccessful Boolean  @map("is_successful")
+
+  device Device @relation(fields: [deviceId], references: [id])
+  channelLogs ChannelLog[]
+  messageLogs MessageLog[]
+
+  @@index([deviceId])
+  @@map("device_polls")
+}
+
+model ChannelLog {
+  pollId               String  @map("poll_id")
+  channelNumber        Int     @map("channel_number")
+  channelValue         Int     @map("channel_value")
+  isCounting           Boolean @map("is_counting")
+  overflowOrLatchValue Boolean @map("overflow_or_latch_value")
+
+  poll DevicePoll @relation(fields: [pollId], references: [id])
+
+  @@id([pollId, channelNumber])
+  @@map("channel_logs")
+}
+
+model MessageLog {
+  id      String @id @default(uuid()) @map("message_log_id")
+  pollId  String @map("poll_id")
+  message String
+
+  poll DevicePoll @relation(fields: [pollId], references: [id])
+
+  @@index([pollId])
+  @@map("message_logs")
+}

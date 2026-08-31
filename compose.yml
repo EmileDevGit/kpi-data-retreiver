@@ -1,0 +1,32 @@
+services:
+  nextjs-standalone:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nextjs-standalone-image
+    container_name: nextjs-standalone-container
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/mydb?schema=public"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: postgres-db-container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
