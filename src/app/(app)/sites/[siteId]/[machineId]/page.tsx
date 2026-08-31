@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getSite } from "@/lib/data/site";
 import { getMachine } from "@/lib/data/machine";
 import { listDevicesByMachine } from "@/lib/data/device/crud";
+import { DeviceCard } from "@/components/device/device-card";
 
 export const dynamic = "force-dynamic";
 
@@ -31,19 +32,20 @@ export default async function MachineDevicesPage({
 
       <div className="space-y-3">
         {devices.map((device) => (
-          <Link
+          <DeviceCard
             key={device.id}
-            href={`/sites/${siteId}/${machineId}/${device.id}`}
-            className="rounded-2xl bg-[#EDE7D9] border-l-[6px] border-[#4C8C5B] p-6 flex items-center justify-between transition-colors hover:bg-[#E4DDC9]"
-          >
-            <div>
-              <h2 className="font-medium text-[#1E3A2B]">{device.ipAddress}</h2>
-              {device.description && (
-                <p className="text-sm text-[#8A9184]">{device.description}</p>
-              )}
-            </div>
-            <span className="text-sm text-[#8A9184] font-mono">{device.macAddress}</span>
-          </Link>
+            siteId={siteId}
+            machineId={machineId}
+            device={{
+              id: device.id,
+              ipAddress: device.ipAddress,
+              macAddress: device.macAddress,
+              username: device.username,
+              description: device.description,
+              createdAt: device.createdAt,
+              updatedAt: device.updatedAt,
+            }}
+          />
         ))}
       </div>
     </div>
