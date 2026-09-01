@@ -5,11 +5,20 @@ import { createDevice, updateDevice, deleteDevice } from "@/lib/data/device/crud
 import { encryptDevicePassword } from "@/lib/security/device-credential";
 import { syncDevicePolling, stopDevicePolling } from "@/lib/polling/scheduler";
 import { intervalInputToMs, type IntervalUnit } from "@/lib/utils/poll-interval";
+import { listChannelConfigsByDevice, updateChannelConfig } from "@/lib/data/channel-config";
+import type { ChannelConfig } from "@/generated/prisma/client";
 
 const MIN_POLL_INTERVAL_MS = 1000;
 
 // "error" is scheduler-managed only — not a state a user can pick from the form.
 const USER_SETTABLE_STATUSES: PollingStatus[] = ["active", "stopped"];
+
+export type ChannelConfigInfo = {
+  channelNumber: number;
+  mode: number;
+  signalLogicStatus: number;
+  isPaused: boolean;
+};
 
 export type DeviceConfigFormState = {
   error: string | null;
@@ -21,6 +30,7 @@ export type DeviceConfigFormState = {
     pollIntervalMs: number;
     pollingStatus: PollingStatus;
   } | null;
+  channelConfigs: ChannelConfigInfo[] | null;
 };
 
 export async function updateDeviceConfigAction(
@@ -38,20 +48,34 @@ export async function updateDeviceConfigAction(
   const pollingStatusRaw = String(formData.get("pollingStatus") ?? "stopped");
 
   if (!ipAddress || !macAddress || !username) {
-    return { error: "IP address, MAC address, and username are required.", device: null };
+    return { error: "IP address, MAC address, and username are required.", device: null, channelConfigs: null };
   }
 
   if (!USER_SETTABLE_STATUSES.includes(pollingStatusRaw as PollingStatus)) {
-    return { error: "Invalid polling status.", device: null };
+    return { error: "Invalid polling status.", device: null, channelConfigs: null };
   }
   const pollingStatus = pollingStatusRaw as PollingStatus;
 
   if (!Number.isFinite(pollIntervalValue) || pollIntervalValue <= 0) {
-    return { error: "Polling rate must be a positive number.", device: null };
+    return { error: "Polling rate must be a positive number.", device: null, channelConfigs: null };
   }
   const pollIntervalMs = intervalInputToMs(pollIntervalValue, pollIntervalUnit);
   if (pollIntervalMs < MIN_POLL_INTERVAL_MS) {
-    return { error: `Polling rate must be at least ${MIN_POLL_INTERVAL_MS}ms.`, device: null };
+    return { error: `Polling rate must be at least ${MIN_POLL_INTERVAL_MS}ms.`, device: null, channelConfigs: null };
+  }
+
+  // Channel pause toggles ride along in the same form/save as the device
+  // fields — resolve what each channel's isPaused WOULD be after this save
+  // (not the stale pre-save DB value) so activating polling and unpausing a
+  // channel in the same click works, instead of rejecting on stale state.
+  const existingChannels = await listChannelConfigsByDevice(deviceId);
+  const resolvedChannels = existingChannels.map((c) => {
+    const submitted = formData.get(`channelPaused_${c.channelNumber}`);
+    return { channelNumber: c.channelNumber, isPaused: submitted === null ? c.isPaused : submitted === "paused" };
+  });
+
+  if (pollingStatus === "active" && resolvedChannels.length > 0 && resolvedChannels.every((c) => c.isPaused)) {
+    return { error: "Can't activate polling — every configured channel is paused. Unpause at least one first.", device: null, channelConfigs: null };
   }
 
   try {
@@ -66,6 +90,11 @@ export async function updateDeviceConfigAction(
       pollingStatus,
       consecutiveFailureCount: 0,
     });
+
+    const updatedChannels: ChannelConfig[] = await Promise.all(
+      resolvedChannels.map((c) => updateChannelConfig(deviceId, c.channelNumber, { isPaused: c.isPaused })),
+    );
+
     await syncDevicePolling(deviceId);
     return {
       error: null,
@@ -77,12 +106,15 @@ export async function updateDeviceConfigAction(
         pollIntervalMs: updated.pollIntervalMs,
         pollingStatus: updated.pollingStatus,
       },
+      channelConfigs: updatedChannels
+        .map((c) => ({ channelNumber: c.channelNumber, mode: c.mode, signalLogicStatus: c.signalLogicStatus, isPaused: c.isPaused }))
+        .sort((a, b) => a.channelNumber - b.channelNumber),
     };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      return { error: "That IP address or MAC address is already used by another device.", device: null };
+      return { error: "That IP address or MAC address is already used by another device.", device: null, channelConfigs: null };
     }
-    return { error: "Failed to update device.", device: null };
+    return { error: "Failed to update device.", device: null, channelConfigs: null };
   }
 }
 

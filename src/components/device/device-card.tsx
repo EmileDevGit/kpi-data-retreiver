@@ -3,18 +3,11 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { updateDeviceConfigAction, deleteDeviceAction, type DeviceConfigFormState } from "@/lib/actions/device";
+import { updateDeviceConfigAction, deleteDeviceAction, type DeviceConfigFormState, type ChannelConfigInfo } from "@/lib/actions/device";
 import type { PollingStatus } from "@/generated/prisma/client";
 import { STATUS_STYLES } from "@/lib/styles/status";
 import type { Status } from "@/lib/types/status";
 import { msToIntervalInput, formatInterval, type IntervalUnit } from "@/lib/utils/poll-interval";
-
-type ChannelConfigInfo = {
-  channelNumber: number;
-  mode: number;
-  signalLogicStatus: number;
-  isPaused: boolean;
-};
 
 type DeviceCardInfo = {
   id: string;
@@ -34,7 +27,7 @@ export const BUTTON_CLASS =
 const DANGER_BUTTON_CLASS =
   "text-sm font-semibold text-[#C0392B] border border-[#C0392B]/40 rounded-lg px-3 py-1.5 hover:bg-[#C0392B]/10 transition-colors focus:outline-none focus-visible:outline-none disabled:opacity-60";
 
-const INITIAL_FORM_STATE: DeviceConfigFormState = { error: null, device: null };
+const INITIAL_FORM_STATE: DeviceConfigFormState = { error: null, device: null, channelConfigs: null };
 
 export function ConfigField({
   label,
@@ -158,7 +151,7 @@ export function IntervalField({ label, name, valueMs, editing }: { label: string
   );
 }
 
-export function ChannelStateTable({ channelConfigs }: { channelConfigs: ChannelConfigInfo[] }) {
+export function ChannelStateTable({ channelConfigs, editing }: { channelConfigs: ChannelConfigInfo[]; editing: boolean }) {
   return (
     <div className="space-y-1">
       <p className="text-[#8A9184]">Channels</p>
@@ -172,7 +165,7 @@ export function ChannelStateTable({ channelConfigs }: { channelConfigs: ChannelC
                 <th className="px-2 py-1 text-left font-medium">Ch</th>
                 <th className="px-2 py-1 text-left font-medium">Mode</th>
                 <th className="px-2 py-1 text-left font-medium">Signal Logic</th>
-                <th className="px-2 py-1 text-left font-medium">Paused</th>
+                <th className="px-2 py-1 text-left font-medium">State</th>
               </tr>
             </thead>
             <tbody>
@@ -181,7 +174,22 @@ export function ChannelStateTable({ channelConfigs }: { channelConfigs: ChannelC
                   <td className="px-2 py-1">{c.channelNumber}</td>
                   <td className="px-2 py-1">{c.mode}</td>
                   <td className="px-2 py-1">{c.signalLogicStatus}</td>
-                  <td className={`px-2 py-1 ${c.isPaused ? STATUS_STYLES.bad.text : ""}`}>{c.isPaused ? "Yes" : "No"}</td>
+                  <td className="px-2 py-1">
+                    {editing ? (
+                      <select
+                        name={`channelPaused_${c.channelNumber}`}
+                        defaultValue={c.isPaused ? "paused" : "active"}
+                        className="rounded-lg border border-[#8A9184]/40 bg-[#F6F2E8] px-1.5 py-0.5 text-xs leading-5 text-[#1E3A2B] outline-none focus:outline-none focus-visible:outline-none focus:border-[#4C8C5B]"
+                      >
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                      </select>
+                    ) : (
+                      <span className={c.isPaused ? STATUS_STYLES.bad.text : STATUS_STYLES.good.text}>
+                        {c.isPaused ? "Paused" : "Active"}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -217,7 +225,7 @@ export function DescriptionField({ value, editing }: { value: string; editing: b
 
 export function DeviceCard({
   device: initialDevice,
-  channelConfigs,
+  channelConfigs: initialChannelConfigs,
   siteId,
   machineId,
 }: {
@@ -227,6 +235,7 @@ export function DeviceCard({
   machineId: string;
 }) {
   const [device, setDevice] = useState(initialDevice);
+  const [channelConfigs, setChannelConfigs] = useState(initialChannelConfigs);
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -241,9 +250,10 @@ export function DeviceCard({
   useEffect(() => {
     if (state.device) {
       setDevice((d) => ({ ...d, ...state.device }));
+      if (state.channelConfigs) setChannelConfigs(state.channelConfigs);
       setEditing(false);
     }
-  }, [state.device]);
+  }, [state.device, state.channelConfigs]);
 
   function handleDelete() {
     startDeleteTransition(async () => {
@@ -310,7 +320,7 @@ export function DeviceCard({
             <DescriptionField value={device.description ?? ""} editing={editing} />
             <IntervalField label="Polling rate" name="pollInterval" valueMs={device.pollIntervalMs} editing={editing} />
             <PollingStatusField label="Polling" name="pollingStatus" value={device.pollingStatus} editing={editing} />
-            <ChannelStateTable channelConfigs={channelConfigs} />
+            <ChannelStateTable channelConfigs={channelConfigs} editing={editing} />
             <ConfigField label="Created" name="createdAt" value={new Date(device.createdAt).toLocaleString()} editing={false} />
             <ConfigField label="Updated" name="updatedAt" value={new Date(device.updatedAt).toLocaleString()} editing={false} />
 
