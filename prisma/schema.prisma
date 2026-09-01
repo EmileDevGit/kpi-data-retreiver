@@ -78,7 +78,7 @@ model ChannelConfig {
   channelNumber     Int     @map("channel_number")
   mode              Int
   signalLogicStatus Int     @map("signal_logic_status")
-  isPaused          Boolean @default(false) @map("is_paused")
+  isPaused          Boolean @default(true) @map("is_paused")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
