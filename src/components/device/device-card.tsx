@@ -71,6 +71,49 @@ export function ConfigField({
   );
 }
 
+const MAC_ADDRESS_PATTERN = "([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}";
+
+// Strips anything that isn't a hex digit and re-inserts colons every 2
+// characters as the user types, so a malformed MAC can't be typed in the
+// first place instead of just being rejected after the fact.
+function formatMacInput(raw: string): string {
+  const hex = raw.replace(/[^0-9a-fA-F]/g, "").toUpperCase().slice(0, 12);
+  return hex.match(/.{1,2}/g)?.join(":") ?? hex;
+}
+
+// Give this a `key={value}` at the call site so a value change from outside
+// (e.g. after a successful save) remounts it with fresh state, instead of
+// syncing via a useEffect.
+export function MacAddressField({ name, value, editing }: { name: string; value: string; editing: boolean }) {
+  const [inputValue, setInputValue] = useState(() => formatMacInput(value));
+
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <label htmlFor={editing ? name : undefined} className="text-[#8A9184] shrink-0">
+        MAC Address
+      </label>
+      {editing ? (
+        <input
+          id={name}
+          name={name}
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(formatMacInput(e.target.value))}
+          placeholder="AA:BB:CC:DD:EE:FF"
+          pattern={MAC_ADDRESS_PATTERN}
+          title="MAC address in the form AA:BB:CC:DD:EE:FF"
+          required
+          className="box-border w-56 rounded-lg border border-[#8A9184]/40 bg-[#F6F2E8] px-2 py-1 text-right leading-5 text-[#1E3A2B] font-mono outline-none focus:outline-none focus-visible:outline-none focus:border-[#4C8C5B]"
+        />
+      ) : (
+        <span className="box-border w-56 truncate rounded-lg border border-transparent px-2 py-1 text-right leading-5 font-mono text-[#1E3A2B]">
+          {value || "—"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 const POLLING_STATUS_LABEL: Record<PollingStatus, string> = {
   active: "Active",
   stopped: "Stopped",
@@ -315,7 +358,7 @@ export function DeviceCard({
         <div className="border-t border-[#8A9184]/30 p-6">
           <form action={formAction} className="space-y-3 text-sm">
             <ConfigField label="IP Address" name="ipAddress" value={device.ipAddress} editing={editing} mono required />
-            <ConfigField label="MAC Address" name="macAddress" value={device.macAddress} editing={editing} mono required />
+            <MacAddressField key={device.macAddress} name="macAddress" value={device.macAddress} editing={editing} />
             <ConfigField label="Username" name="username" value={device.username} editing={editing} required />
             <DescriptionField value={device.description ?? ""} editing={editing} />
             <IntervalField label="Polling rate" name="pollInterval" valueMs={device.pollIntervalMs} editing={editing} />

@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDeviceAction, type CreateDeviceFormState } from "@/lib/actions/device";
-import { BUTTON_CLASS, ConfigField, DescriptionField } from "./device-card";
+import { BUTTON_CLASS, ConfigField, DescriptionField, MacAddressField } from "./device-card";
 
 const INITIAL_STATE: CreateDeviceFormState = { error: null, device: null };
 
@@ -59,7 +59,7 @@ export function CreateDeviceButton({ machineId }: { machineId: string }) {
 
             <form action={formAction} className="space-y-3 text-sm">
               <ConfigField label="IP Address" name="ipAddress" value="" editing mono required />
-              <ConfigField label="MAC Address" name="macAddress" value="" editing mono required />
+              <MacAddressField name="macAddress" value="" editing />
               <ConfigField label="Username" name="username" value="" editing required />
               <ConfigField label="Password" name="password" value="" editing required type="password" />
               <DescriptionField value="" editing />

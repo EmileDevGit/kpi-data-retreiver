@@ -9,6 +9,8 @@ import { listChannelConfigsByDevice, updateChannelConfig } from "@/lib/data/chan
 import type { ChannelConfig } from "@/generated/prisma/client";
 
 const MIN_POLL_INTERVAL_MS = 1000;
+const MAC_ADDRESS_PATTERN = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+const INVALID_MAC_ERROR = "MAC address must be in the form AA:BB:CC:DD:EE:FF.";
 
 // "error" is scheduler-managed only — not a state a user can pick from the form.
 const USER_SETTABLE_STATUSES: PollingStatus[] = ["active", "stopped"];
@@ -51,6 +53,10 @@ export async function updateDeviceConfigAction(
     return { error: "IP address, MAC address, and username are required.", device: null, channelConfigs: null };
   }
 
+  if (!MAC_ADDRESS_PATTERN.test(macAddress)) {
+    return { error: INVALID_MAC_ERROR, device: null, channelConfigs: null };
+  }
+
   if (!USER_SETTABLE_STATUSES.includes(pollingStatusRaw as PollingStatus)) {
     return { error: "Invalid polling status.", device: null, channelConfigs: null };
   }
@@ -83,7 +89,7 @@ export async function updateDeviceConfigAction(
     // fresh failure budget rather than carrying over a count from before.
     const updated = await updateDevice(deviceId, {
       ipAddress,
-      macAddress,
+      macAddress: macAddress.toUpperCase(),
       username,
       description,
       pollIntervalMs,
@@ -139,11 +145,15 @@ export async function createDeviceAction(
     return { error: "IP address, MAC address, username, and password are required.", device: null };
   }
 
+  if (!MAC_ADDRESS_PATTERN.test(macAddress)) {
+    return { error: INVALID_MAC_ERROR, device: null };
+  }
+
   try {
     const created = await createDevice({
       machineId,
       ipAddress,
-      macAddress,
+      macAddress: macAddress.toUpperCase(),
       username,
       description,
       passwordEncrypted: encryptDevicePassword(password),
