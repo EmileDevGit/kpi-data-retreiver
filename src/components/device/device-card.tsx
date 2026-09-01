@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { updateDeviceConfigAction, deleteDeviceAction, type DeviceConfigFormState } from "@/lib/actions/device";
 import type { PollingStatus } from "@/generated/prisma/client";
 import { STATUS_STYLES } from "@/lib/styles/status";
+import type { Status } from "@/lib/types/status";
 import { msToIntervalInput, formatInterval, type IntervalUnit } from "@/lib/utils/poll-interval";
 
 type ChannelConfigInfo = {
@@ -80,13 +81,15 @@ export function ConfigField({
 const POLLING_STATUS_LABEL: Record<PollingStatus, string> = {
   active: "Active",
   stopped: "Stopped",
-  error: "Error (retrying)",
+  error: "Error",
 };
 
-const POLLING_STATUS_TEXT_CLASS: Record<PollingStatus, string> = {
-  active: STATUS_STYLES.good.text,
-  stopped: STATUS_STYLES.neutral.text,
-  error: STATUS_STYLES.bad.text,
+// active: green, stopped: grey, error: red — reuses the same good/neutral/bad
+// palette as the device debug panel so status color means the same thing everywhere.
+export const POLLING_STATUS_TO_STATUS: Record<PollingStatus, Status> = {
+  active: "good",
+  stopped: "neutral",
+  error: "bad",
 };
 
 // "error" is scheduler-managed (set after repeated poll failures) and isn't
@@ -110,7 +113,7 @@ export function PollingStatusField({ label, name, value, editing }: { label: str
           <option value="stopped">Stopped</option>
         </select>
       ) : (
-        <span className={`box-border w-56 truncate rounded-lg border border-transparent px-2 py-1 text-right leading-5 font-medium ${POLLING_STATUS_TEXT_CLASS[value]}`}>
+        <span className={`box-border w-56 truncate rounded-lg border border-transparent px-2 py-1 text-right leading-5 font-medium ${STATUS_STYLES[POLLING_STATUS_TO_STATUS[value]].text}`}>
           {POLLING_STATUS_LABEL[value]}
         </span>
       )}
@@ -224,7 +227,7 @@ export function DeviceCard({
   machineId: string;
 }) {
   const [device, setDevice] = useState(initialDevice);
-  const [showConfig, setShowConfig] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -242,19 +245,6 @@ export function DeviceCard({
     }
   }, [state.device]);
 
-  useEffect(() => {
-    if (!showConfig) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setShowConfig(false);
-        setEditing(false);
-        setConfirmingDelete(false);
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showConfig]);
-
   function handleDelete() {
     startDeleteTransition(async () => {
       const result = await deleteDeviceAction(device.id);
@@ -270,11 +260,18 @@ export function DeviceCard({
 
   if (deleted) return null;
 
+  const statusStyle = STATUS_STYLES[POLLING_STATUS_TO_STATUS[device.pollingStatus]];
+
   return (
-    <>
-      <div className="rounded-2xl bg-[#EDE7D9] border-l-[6px] border-[#4C8C5B] p-6 flex items-center justify-between">
+    <div className={`rounded-2xl bg-[#EDE7D9] border-l-[6px] ${statusStyle.border} overflow-hidden`}>
+      <div className="p-6 flex items-center justify-between">
         <div>
-          <h2 className="font-medium text-[#1E3A2B]">{device.ipAddress}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-medium text-[#1E3A2B]">{device.ipAddress}</h2>
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${statusStyle.dot}`} />
+            </span>
+          </div>
           {device.description && (
             <p className="text-sm text-[#8A9184]">{device.description}</p>
           )}
@@ -282,119 +279,103 @@ export function DeviceCard({
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setShowConfig(true)} className={BUTTON_CLASS}>
-              Config
-            </button>
             <Link href={`/sites/${siteId}/${machineId}/${device.id}`} className={BUTTON_CLASS}>
               Debug
             </Link>
+            <button
+              type="button"
+              onClick={() =>
+                setExpanded((v) => {
+                  if (v) {
+                    setEditing(false);
+                    setConfirmingDelete(false);
+                  }
+                  return !v;
+                })
+              }
+              className={BUTTON_CLASS}
+            >
+              {expanded ? "Hide" : "Config"}
+            </button>
           </div>
         </div>
       </div>
 
-      {showConfig && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => {
-            setShowConfig(false);
-            setEditing(false);
-            setConfirmingDelete(false);
-          }}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl bg-[#F6F2E8] p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-[#1E3A2B]">Device Config</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowConfig(false);
-                  setEditing(false);
-                  setConfirmingDelete(false);
-                }}
-                className="text-[#8A9184] hover:text-[#1E3A2B] focus:outline-none focus-visible:outline-none"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
+      {expanded && (
+        <div className="border-t border-[#8A9184]/30 p-6">
+          <form action={formAction} className="space-y-3 text-sm">
+            <ConfigField label="IP Address" name="ipAddress" value={device.ipAddress} editing={editing} mono required />
+            <ConfigField label="MAC Address" name="macAddress" value={device.macAddress} editing={editing} mono required />
+            <ConfigField label="Username" name="username" value={device.username} editing={editing} required />
+            <DescriptionField value={device.description ?? ""} editing={editing} />
+            <IntervalField label="Polling rate" name="pollInterval" valueMs={device.pollIntervalMs} editing={editing} />
+            <PollingStatusField label="Polling" name="pollingStatus" value={device.pollingStatus} editing={editing} />
+            <ChannelStateTable channelConfigs={channelConfigs} />
+            <ConfigField label="Created" name="createdAt" value={new Date(device.createdAt).toLocaleString()} editing={false} />
+            <ConfigField label="Updated" name="updatedAt" value={new Date(device.updatedAt).toLocaleString()} editing={false} />
 
-            <form action={formAction} className="space-y-3 text-sm">
-              <ConfigField label="IP Address" name="ipAddress" value={device.ipAddress} editing={editing} mono required />
-              <ConfigField label="MAC Address" name="macAddress" value={device.macAddress} editing={editing} mono required />
-              <ConfigField label="Username" name="username" value={device.username} editing={editing} required />
-              <DescriptionField value={device.description ?? ""} editing={editing} />
-              <IntervalField label="Polling rate" name="pollInterval" valueMs={device.pollIntervalMs} editing={editing} />
-              <PollingStatusField label="Polling" name="pollingStatus" value={device.pollingStatus} editing={editing} />
-              <ChannelStateTable channelConfigs={channelConfigs} />
-              <ConfigField label="Created" name="createdAt" value={new Date(device.createdAt).toLocaleString()} editing={false} />
-              <ConfigField label="Updated" name="updatedAt" value={new Date(device.updatedAt).toLocaleString()} editing={false} />
+            {state.error && <p className="text-[#C0392B]">{state.error}</p>}
+            {deleteError && <p className="text-[#C0392B]">{deleteError}</p>}
 
-              {state.error && <p className="text-[#C0392B]">{state.error}</p>}
-              {deleteError && <p className="text-[#C0392B]">{deleteError}</p>}
-
-              {confirmingDelete ? (
-                <div className="flex items-center justify-between gap-4 pt-2">
-                  <p className="text-[#C0392B]">Delete this device? This can&apos;t be undone.</p>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingDelete(false)}
-                      className={BUTTON_CLASS}
-                      disabled={isDeleting}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      className={DANGER_BUTTON_CLASS}
-                      disabled={isDeleting}
-                    >
-                      {isDeleting ? "Deleting…" : "Confirm Delete"}
-                    </button>
-                  </div>
+            {confirmingDelete ? (
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <p className="text-[#C0392B]">Delete this device? This can&apos;t be undone.</p>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(false)}
+                    className={BUTTON_CLASS}
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className={DANGER_BUTTON_CLASS}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? "Deleting…" : "Confirm Delete"}
+                  </button>
                 </div>
-              ) : (
-                <div className="flex justify-between gap-2 pt-2">
-                  {!editing && (
-                    <button type="button" onClick={() => setConfirmingDelete(true)} className={DANGER_BUTTON_CLASS}>
-                      Delete
+              </div>
+            ) : (
+              <div className="flex justify-between gap-2 pt-2">
+                {!editing && (
+                  <button type="button" onClick={() => setConfirmingDelete(true)} className={DANGER_BUTTON_CLASS}>
+                    Delete
+                  </button>
+                )}
+                <div className="flex gap-2 ml-auto">
+                  {editing ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(false)}
+                        className={BUTTON_CLASS}
+                        disabled={pending}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="text-sm font-semibold text-[#F6F2E8] bg-[#1E3A2B] rounded-lg px-3 py-1.5 hover:bg-[#1E3A2B]/90 transition-colors disabled:opacity-60 focus:outline-none focus-visible:outline-none"
+                        disabled={pending}
+                      >
+                        {pending ? "Saving…" : "Save"}
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => setEditing(true)} className={BUTTON_CLASS}>
+                      Edit
                     </button>
                   )}
-                  <div className="flex gap-2 ml-auto">
-                    {editing ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setEditing(false)}
-                          className={BUTTON_CLASS}
-                          disabled={pending}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="text-sm font-semibold text-[#F6F2E8] bg-[#1E3A2B] rounded-lg px-3 py-1.5 hover:bg-[#1E3A2B]/90 transition-colors disabled:opacity-60 focus:outline-none focus-visible:outline-none"
-                          disabled={pending}
-                        >
-                          {pending ? "Saving…" : "Save"}
-                        </button>
-                      </>
-                    ) : (
-                      <button type="button" onClick={() => setEditing(true)} className={BUTTON_CLASS}>
-                        Edit
-                      </button>
-                    )}
-                  </div>
                 </div>
-              )}
-            </form>
-          </div>
+              </div>
+            )}
+          </form>
         </div>
       )}
-    </>
+    </div>
   );
 }
