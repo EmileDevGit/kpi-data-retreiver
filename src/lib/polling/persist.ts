@@ -2,7 +2,7 @@ import type { Device, DevicePoll } from "@/generated/prisma/client";
 import { pollDevice } from "@/lib/data/device/poll";
 import { decryptDevicePassword } from "@/lib/security/device-credential";
 import { createDevicePoll } from "@/lib/data/device-poll";
-import { syncChannelConfigReading, listChannelConfigsByDevice } from "@/lib/data/channel-config";
+import { syncChannelConfigReading, listChannelConfigsByDevice, deviceHasOnlyPausedChannels } from "@/lib/data/channel-config";
 import { createManyChannelLogs } from "@/lib/data/channel-log";
 import { createManyMessageLogs, getLatestMessageLogOccurredAt } from "@/lib/data/message-log";
 
@@ -20,7 +20,15 @@ function toChannelNumber(deviceChannel: number): number {
 const MIN_CHANNEL_NUMBER = 1;
 const MAX_CHANNEL_NUMBER = 4;
 
-export async function pollAndPersistDevice(device: Device): Promise<DevicePoll> {
+// Returns null (no network call, nothing written) when every configured
+// channel is paused — nothing would be logged anyway. A device with no
+// configured channels yet is left alone here so its first poll can still
+// happen and discover them.
+export async function pollAndPersistDevice(device: Device): Promise<DevicePoll | null> {
+  if (await deviceHasOnlyPausedChannels(device.id)) {
+    return null;
+  }
+
   const password = decryptDevicePassword(device.passwordEncrypted);
   const result = await pollDevice({ ipAddress: device.ipAddress, username: device.username, password });
 

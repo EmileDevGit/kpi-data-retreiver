@@ -30,6 +30,15 @@ export function syncChannelConfigReading(
   });
 }
 
+// True only when the device has at least one configured channel and every
+// one of them is paused. A device with zero configured channels (not yet
+// discovered by a first successful poll) must NOT count as "all paused" —
+// that would permanently block the very poll that discovers its channels.
+export async function deviceHasOnlyPausedChannels(deviceId: string): Promise<boolean> {
+  const configs = await prisma.channelConfig.findMany({ where: { deviceId }, select: { isPaused: true } });
+  return configs.length > 0 && configs.every((c) => c.isPaused);
+}
+
 export function updateChannelConfig(
   deviceId: string,
   channelNumber: number,

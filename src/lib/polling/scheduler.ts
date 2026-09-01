@@ -65,17 +65,23 @@ async function runCycle(deviceId: string): Promise<void> {
     return;
   }
 
-  let succeeded = false;
+  let poll: Awaited<ReturnType<typeof pollAndPersistDevice>> | null = null;
+  let cycleErrored = false;
   try {
-    const poll = await pollAndPersistDevice(device);
-    succeeded = poll.isSuccessful;
+    poll = await pollAndPersistDevice(device);
   } catch (err) {
+    cycleErrored = true;
     console.error(`[polling] cycle failed for device ${deviceId}:`, err);
   }
 
-  await recordPollOutcome(deviceId, succeeded).catch((err) => {
-    console.error(`[polling] failed to record outcome for device ${deviceId}:`, err);
-  });
+  // poll === null means the cycle was skipped entirely (all channels
+  // paused) — nothing was attempted, so leave the failure streak/status
+  // untouched rather than recording a false success or failure.
+  if (poll !== null || cycleErrored) {
+    await recordPollOutcome(deviceId, poll?.isSuccessful ?? false).catch((err) => {
+      console.error(`[polling] failed to record outcome for device ${deviceId}:`, err);
+    });
+  }
 
   // Re-read after recording the outcome: config may have changed (rate
   // change, stopped, deleted) while this cycle's network call was in flight.
