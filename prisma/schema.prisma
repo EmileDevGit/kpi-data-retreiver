@@ -12,6 +12,19 @@ datasource db {
   provider = "postgresql"
 }
 
+// stopped: user-initiated, no polling.
+// active: polling normally at pollIntervalMs.
+// error: scheduler-initiated after consecutiveFailureCount hits the failure
+// threshold — keeps polling at a slower fixed retry cadence and returns to
+// active automatically on the next successful poll.
+enum PollingStatus {
+  active
+  stopped
+  error
+
+  @@map("polling_status")
+}
+
 model Site {
   id        String   @id @default(uuid()) @map("site_id")
   name      String   @unique @map("site_name")
@@ -45,12 +58,16 @@ model Device {
   username     String
   passwordEncrypted String @map("password_encrypted")
   description  String?
+  pollIntervalMs  Int     @default(60000) @map("poll_interval_ms")
+  pollingStatus   PollingStatus @default(stopped) @map("polling_status")
+  consecutiveFailureCount Int   @default(0) @map("consecutive_failure_count")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   machine Machine @relation(fields: [machineId], references: [id])
   channelConfigs ChannelConfig[]
   polls DevicePoll[]
+  messageLogs MessageLog[]
 
   @@index([machineId])
   @@map("devices")
@@ -76,6 +93,7 @@ model DevicePoll {
   deviceId     String   @map("device_id")
   fetchedAt    DateTime @default(now()) @map("fetched_at")
   isSuccessful Boolean  @map("is_successful")
+  error        String?  @map("error")
 
   device Device @relation(fields: [deviceId], references: [id])
   channelLogs ChannelLog[]
@@ -99,12 +117,19 @@ model ChannelLog {
 }
 
 model MessageLog {
-  id      String @id @default(uuid()) @map("message_log_id")
-  pollId  String @map("poll_id")
-  message String
+  id         String   @id @default(uuid()) @map("message_log_id")
+  pollId     String   @map("poll_id")
+  deviceId   String   @map("device_id")
+  occurredAt DateTime @map("occurred_at")
+  slot       Int
+  channel    Int
+  ioType     Int      @map("io_type")
+  value      Int
 
-  poll DevicePoll @relation(fields: [pollId], references: [id])
+  poll   DevicePoll @relation(fields: [pollId], references: [id])
+  device Device     @relation(fields: [deviceId], references: [id])
 
   @@index([pollId])
+  @@index([deviceId, occurredAt])
   @@map("message_logs")
 }

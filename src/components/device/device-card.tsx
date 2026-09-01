@@ -4,6 +4,16 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateDeviceConfigAction, deleteDeviceAction, type DeviceConfigFormState } from "@/lib/actions/device";
+import type { PollingStatus } from "@/generated/prisma/client";
+import { STATUS_STYLES } from "@/lib/styles/status";
+import { msToIntervalInput, formatInterval, type IntervalUnit } from "@/lib/utils/poll-interval";
+
+type ChannelConfigInfo = {
+  channelNumber: number;
+  mode: number;
+  signalLogicStatus: number;
+  isPaused: boolean;
+};
 
 type DeviceCardInfo = {
   id: string;
@@ -11,6 +21,8 @@ type DeviceCardInfo = {
   macAddress: string;
   username: string;
   description: string | null;
+  pollIntervalMs: number;
+  pollingStatus: PollingStatus;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -65,6 +77,118 @@ export function ConfigField({
   );
 }
 
+const POLLING_STATUS_LABEL: Record<PollingStatus, string> = {
+  active: "Active",
+  stopped: "Stopped",
+  error: "Error (retrying)",
+};
+
+const POLLING_STATUS_TEXT_CLASS: Record<PollingStatus, string> = {
+  active: STATUS_STYLES.good.text,
+  stopped: STATUS_STYLES.neutral.text,
+  error: STATUS_STYLES.bad.text,
+};
+
+// "error" is scheduler-managed (set after repeated poll failures) and isn't
+// offered as a choice — picking either option here is how a user takes a
+// device out of error state.
+export function PollingStatusField({ label, name, value, editing }: { label: string; name: string; value: PollingStatus; editing: boolean }) {
+  const editDefault: Extract<PollingStatus, "active" | "stopped"> = value === "stopped" ? "stopped" : "active";
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <label htmlFor={editing ? name : undefined} className="text-[#8A9184] shrink-0">
+        {label}
+      </label>
+      {editing ? (
+        <select
+          id={name}
+          name={name}
+          defaultValue={editDefault}
+          className="box-border w-56 rounded-lg border border-[#8A9184]/40 bg-[#F6F2E8] px-2 py-1 text-right leading-5 text-[#1E3A2B] outline-none focus:outline-none focus-visible:outline-none focus:border-[#4C8C5B]"
+        >
+          <option value="active">Active</option>
+          <option value="stopped">Stopped</option>
+        </select>
+      ) : (
+        <span className={`box-border w-56 truncate rounded-lg border border-transparent px-2 py-1 text-right leading-5 font-medium ${POLLING_STATUS_TEXT_CLASS[value]}`}>
+          {POLLING_STATUS_LABEL[value]}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function IntervalField({ label, name, valueMs, editing }: { label: string; name: string; valueMs: number; editing: boolean }) {
+  const { value, unit } = msToIntervalInput(valueMs);
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <label htmlFor={editing ? `${name}Value` : undefined} className="text-[#8A9184] shrink-0">
+        {label}
+      </label>
+      {editing ? (
+        <div className="flex w-56 gap-2">
+          <input
+            id={`${name}Value`}
+            name={`${name}Value`}
+            type="number"
+            min={1}
+            step="any"
+            defaultValue={value}
+            required
+            className="box-border w-full rounded-lg border border-[#8A9184]/40 bg-[#F6F2E8] px-2 py-1 text-right leading-5 text-[#1E3A2B] outline-none focus:outline-none focus-visible:outline-none focus:border-[#4C8C5B]"
+          />
+          <select
+            name={`${name}Unit`}
+            defaultValue={unit satisfies IntervalUnit}
+            className="box-border rounded-lg border border-[#8A9184]/40 bg-[#F6F2E8] px-2 py-1 leading-5 text-[#1E3A2B] outline-none focus:outline-none focus-visible:outline-none focus:border-[#4C8C5B]"
+          >
+            <option value="seconds">sec</option>
+            <option value="minutes">min</option>
+          </select>
+        </div>
+      ) : (
+        <span className="box-border w-56 truncate rounded-lg border border-transparent px-2 py-1 text-right leading-5 text-[#1E3A2B]">
+          {formatInterval(valueMs)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function ChannelStateTable({ channelConfigs }: { channelConfigs: ChannelConfigInfo[] }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[#8A9184]">Channels</p>
+      {channelConfigs.length === 0 ? (
+        <p className="text-[#1E3A2B]">No channels configured yet.</p>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-[#8A9184]/40">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-[#E4DDC9] text-[#1E3A2B]">
+                <th className="px-2 py-1 text-left font-medium">Ch</th>
+                <th className="px-2 py-1 text-left font-medium">Mode</th>
+                <th className="px-2 py-1 text-left font-medium">Signal Logic</th>
+                <th className="px-2 py-1 text-left font-medium">Paused</th>
+              </tr>
+            </thead>
+            <tbody>
+              {channelConfigs.map((c) => (
+                <tr key={c.channelNumber} className="border-t border-[#8A9184]/20 text-[#1E3A2B]">
+                  <td className="px-2 py-1">{c.channelNumber}</td>
+                  <td className="px-2 py-1">{c.mode}</td>
+                  <td className="px-2 py-1">{c.signalLogicStatus}</td>
+                  <td className={`px-2 py-1 ${c.isPaused ? STATUS_STYLES.bad.text : ""}`}>{c.isPaused ? "Yes" : "No"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DescriptionField({ value, editing }: { value: string; editing: boolean }) {
   return (
     <div className="space-y-1">
@@ -90,10 +214,12 @@ export function DescriptionField({ value, editing }: { value: string; editing: b
 
 export function DeviceCard({
   device: initialDevice,
+  channelConfigs,
   siteId,
   machineId,
 }: {
   device: DeviceCardInfo;
+  channelConfigs: ChannelConfigInfo[];
   siteId: string;
   machineId: string;
 }) {
@@ -200,6 +326,9 @@ export function DeviceCard({
               <ConfigField label="MAC Address" name="macAddress" value={device.macAddress} editing={editing} mono required />
               <ConfigField label="Username" name="username" value={device.username} editing={editing} required />
               <DescriptionField value={device.description ?? ""} editing={editing} />
+              <IntervalField label="Polling rate" name="pollInterval" valueMs={device.pollIntervalMs} editing={editing} />
+              <PollingStatusField label="Polling" name="pollingStatus" value={device.pollingStatus} editing={editing} />
+              <ChannelStateTable channelConfigs={channelConfigs} />
               <ConfigField label="Created" name="createdAt" value={new Date(device.createdAt).toLocaleString()} editing={false} />
               <ConfigField label="Updated" name="updatedAt" value={new Date(device.updatedAt).toLocaleString()} editing={false} />
 

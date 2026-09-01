@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getSite } from "@/lib/data/site";
 import { getMachine } from "@/lib/data/machine";
 import { listDevicesByMachine } from "@/lib/data/device/crud";
+import { listChannelConfigsByDevice } from "@/lib/data/channel-config";
 import { DeviceCard } from "@/components/device/device-card";
 import { CreateDeviceButton } from "@/components/device/create-device-button";
 
@@ -18,6 +19,11 @@ export default async function MachineDevicesPage({
   if (!site || !machine || machine.siteId !== siteId) notFound();
 
   const devices = await listDevicesByMachine(machineId);
+  const channelConfigsByDevice = new Map(
+    await Promise.all(
+      devices.map(async (device) => [device.id, await listChannelConfigsByDevice(device.id)] as const),
+    ),
+  );
 
   return (
     <div className="min-h-screen bg-[#F6F2E8] p-8 space-y-6">
@@ -40,12 +46,15 @@ export default async function MachineDevicesPage({
             key={device.id}
             siteId={siteId}
             machineId={machineId}
+            channelConfigs={channelConfigsByDevice.get(device.id) ?? []}
             device={{
               id: device.id,
               ipAddress: device.ipAddress,
               macAddress: device.macAddress,
               username: device.username,
               description: device.description,
+              pollIntervalMs: device.pollIntervalMs,
+              pollingStatus: device.pollingStatus,
               createdAt: device.createdAt,
               updatedAt: device.updatedAt,
             }}

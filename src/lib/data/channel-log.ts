@@ -7,6 +7,10 @@ export function createChannelLog(data: Prisma.ChannelLogUncheckedCreateInput): P
   return prisma.channelLog.create({ data });
 }
 
+export function createManyChannelLogs(data: Prisma.ChannelLogUncheckedCreateInput[]): Promise<Prisma.BatchPayload> {
+  return prisma.channelLog.createMany({ data });
+}
+
 export function getChannelLog(pollId: string, channelNumber: number): Promise<ChannelLog | null> {
   return prisma.channelLog.findUnique({
     where: { pollId_channelNumber: { pollId, channelNumber } },

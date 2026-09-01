@@ -10,6 +10,7 @@ services:
       PORT: "3000"
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/mydb?schema=public"
       DEVICE_CREDENTIAL_KEY: "${DEVICE_CREDENTIAL_KEY:?DEVICE_CREDENTIAL_KEY must be set in .env}"
+      POLLING_ENABLED: "true"
     ports:
       - "3000:3000"
     depends_on:
