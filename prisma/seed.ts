@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
+import { encryptDevicePassword } from "../src/lib/security/device-credential";
 
 // Seed data intentionally covers no DevicePoll/ChannelLog/MessageLog rows —
 // persisting live poll results is a deferred feature, not part of this seed.
@@ -56,7 +57,7 @@ async function main() {
       macAddress: "00:0D:E0:AA:BB:01",
       ipAddress: "192.168.1.1",
       username: "root",
-      passwordHash: "$argon2id$seed-placeholder-hash-1",
+      passwordEncrypted: encryptDevicePassword("12345"),
       description: "WISE-4050 digital I/O module",
     },
   });
@@ -69,7 +70,7 @@ async function main() {
       macAddress: "00:0D:E0:AA:BB:02",
       ipAddress: "192.168.1.2",
       username: "root",
-      passwordHash: "$argon2id$seed-placeholder-hash-2",
+      passwordEncrypted: encryptDevicePassword("placeholder-2"),
     },
   });
 
@@ -81,7 +82,7 @@ async function main() {
       macAddress: "00:0D:E0:AA:BB:03",
       ipAddress: "192.168.1.3",
       username: "root",
-      passwordHash: "$argon2id$seed-placeholder-hash-3",
+      passwordEncrypted: encryptDevicePassword("placeholder-3"),
     },
   });
 

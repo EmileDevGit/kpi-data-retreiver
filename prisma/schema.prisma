@@ -43,7 +43,7 @@ model Device {
   macAddress   String   @unique @map("mac_address")
   ipAddress    String   @unique @map("ip_address")
   username     String
-  passwordHash String   @map("password_hash")
+  passwordEncrypted String @map("password_encrypted")
   description  String?
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -65,7 +65,7 @@ model ChannelConfig {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  device Device @relation(fields: [deviceId], references: [id])
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@id([deviceId, channelNumber])
   @@map("channel_configs")

@@ -9,11 +9,23 @@ services:
       NODE_ENV: production
       PORT: "3000"
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/mydb?schema=public"
+      DEVICE_CREDENTIAL_KEY: "${DEVICE_CREDENTIAL_KEY:?DEVICE_CREDENTIAL_KEY must be set in .env}"
     ports:
       - "3000:3000"
     depends_on:
       - db
     restart: unless-stopped
+    develop:
+      watch:
+        # 1. Sync stateless frontend/backend code instantly
+        - action: sync
+          path: ./src
+          target: /app/src
+          initial_sync: true  # Ensures host and container match on startup
+
+        # 2. Rebuild the container if dependencies change
+        - action: rebuild
+          path: ./package.json
 
   db:
     image: postgres:16-alpine

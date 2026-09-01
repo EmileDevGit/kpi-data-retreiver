@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDevice } from "@/lib/data/device/crud";
 import { pollDevice } from "@/lib/data/device/poll";
+import { decryptDevicePassword } from "@/lib/security/device-credential";
 
 export async function GET(
   _request: Request,
@@ -12,6 +13,7 @@ export async function GET(
     return NextResponse.json({ error: "Device not found" }, { status: 404 });
   }
 
-  const result = await pollDevice(device);
+  const password = decryptDevicePassword(device.passwordEncrypted);
+  const result = await pollDevice({ ipAddress: device.ipAddress, username: device.username, password });
   return NextResponse.json(result);
 }
