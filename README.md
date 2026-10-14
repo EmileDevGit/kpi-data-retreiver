@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KPI Dashboard
 
-## Getting Started
+**English** | [Français](README.fr.md)
 
-First, run the development server:
+Internal dashboard for monitoring Advantech WISE-4000 I/O modules deployed across Savoura
+sites. Tracks a `Site → Machine → Device → Channel` hierarchy, polls each device's channels on
+a configurable interval, and stores the history for KPI reporting.
+
+## Stack
+
+- **Next.js 16** (App Router) + React 19
+- **Prisma 7** + **PostgreSQL**
+- **Tailwind CSS 4**
+- **Docker Compose** for local/prod deployment
+
+## Data model
+
+- `Site` → `Machine` → `Device` (identified by MAC/IP, with encrypted credentials)
+- `Device` → `Channel_Config` (per-channel mode/pause settings, channels 1–4)
+- `Device_Poll` → `Channel_Log` / `Message_Log` (one row per poll attempt, with per-channel
+  values and any device messages)
+
+See `prisma/schema.prisma` for the authoritative schema and `project-notes.md` for the UML
+diagram.
+
+## Polling
+
+Each device gets its own in-process timer (`src/lib/polling/scheduler.ts`) so a slow or
+unreachable device never blocks polling for the others. A device auto-escalates from `active`
+to `error` after 5 consecutive failures, falls back to a slower retry cadence, and auto-recovers
+to `active` on the next successful poll. Device credentials are encrypted at rest
+(`src/lib/security/device-credential.ts`).
+
+## Running locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create a `.env` with:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+DATABASE_URL=postgresql://user:password@localhost:5432/mydb?schema=public
+DEVICE_CREDENTIAL_KEY=<32-byte AES-256-GCM key, base64>
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Then run migrations and start the dev server:
 
-## Learn More
+```bash
+npx prisma migrate dev
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open [http://localhost:3000](http://localhost:3000).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Running with Docker
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+docker compose up --build
+```
 
-## Deploy on Vercel
+This builds the standalone Next.js image and starts it alongside a Postgres container
+(`compose.yml`). `DEVICE_CREDENTIAL_KEY` must be set in `.env` — the compose file will refuse to
+start without it.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project layout
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app/(app)/sites/...` — Sites → Machines → Devices pages
+- `src/components/device/` — device card, config panel, debug panel
+- `src/lib/data/` — Prisma queries per entity
+- `src/lib/polling/` — scheduler + poll persistence
+- `prisma/migrations/` — schema history
