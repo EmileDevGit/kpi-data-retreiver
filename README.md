@@ -70,3 +70,7 @@ start without it.
 - `src/lib/data/` — Prisma queries per entity
 - `src/lib/polling/` — scheduler + poll persistence
 - `prisma/migrations/` — schema history
+
+## Screenshots
+![device overview](./screenshots/device-overview.png)
+![new device](./screenshots/new-device.png)

@@ -71,3 +71,8 @@ refusera de démarrer sans cette variable.
 - `src/lib/data/` — requêtes Prisma par entité
 - `src/lib/polling/` — planificateur et persistance des interrogations
 - `prisma/migrations/` — historique du schéma
+
+
+## Captures d'écran 
+![device overview](./screenshots/device-overview.png)
+![new device](./screenshots/new-device.png)
